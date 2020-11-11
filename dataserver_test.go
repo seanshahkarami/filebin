@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -13,75 +14,61 @@ import (
 
 const testRootDir = "dataserver_test"
 
-func cleanTestRootDir() {
-	err := os.RemoveAll(testRootDir)
+func mustCleanDir(dir string) {
+	err := os.RemoveAll(dir)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func downloadFile(handler http.Handler, url string) ([]byte, int, error) {
+func mustReadAll(r io.Reader) []byte {
+	b, err := ioutil.ReadAll(r)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func downloadFile(handler http.Handler, url string) *http.Response {
 	req := httptest.NewRequest("GET", url, nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
-
-	resp := w.Result()
-	b, err := ioutil.ReadAll(resp.Body)
-	return b, resp.StatusCode, err
+	return w.Result()
 }
 
-func uploadFile(handler http.Handler, url string, body []byte) ([]byte, int, error) {
+func uploadFile(handler http.Handler, url string, body []byte) *http.Response {
 	req := httptest.NewRequest("POST", url, bytes.NewReader(body))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
-
-	resp := w.Result()
-	b, err := ioutil.ReadAll(resp.Body)
-	return b, resp.StatusCode, err
+	return w.Result()
 }
 
 func testUploadDownload(t *testing.T, handler http.Handler, url string, data []byte) {
-	_, code, err := downloadFile(handler, url)
-	if err != nil {
-		t.Error(err)
-	}
-	if code != http.StatusNotFound {
+	if resp := downloadFile(handler, url); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("file should not exist yet")
 	}
 
-	_, code, err = uploadFile(handler, url, data)
-	if err != nil {
-		t.Error(err)
-	}
-	if code != http.StatusOK {
+	if resp := uploadFile(handler, url, data); resp.StatusCode != http.StatusOK {
 		t.Errorf("file upload failed")
 	}
 
-	// confirm we can't reupload
-	_, code, err = uploadFile(handler, url, data)
-	if err != nil {
-		t.Error(err)
-	}
-	if code != http.StatusBadRequest {
+	if resp := uploadFile(handler, url, data); resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("file upload should have failed")
 	}
 
-	// confirm download matches upload
-	respData, code, err := downloadFile(handler, url)
-	if err != nil {
-		t.Error(err)
-	}
-	if code != http.StatusOK {
+	if resp := downloadFile(handler, url); resp.StatusCode != http.StatusOK {
 		t.Errorf("expecting http status OK")
-	}
-	if bytes.Compare(data, respData) != 0 {
-		t.Errorf("download differs from upload")
+	} else {
+		b := mustReadAll(resp.Body)
+		if bytes.Compare(data, b) != 0 {
+			t.Errorf("download differs from upload")
+		}
 	}
 }
 
 func TestUploadDownload(t *testing.T) {
-	cleanTestRootDir()
-	defer cleanTestRootDir()
+	mustCleanDir(testRootDir)
+	defer mustCleanDir(testRootDir)
 
 	handler := http.StripPrefix("/data/", DataServer(testRootDir))
 

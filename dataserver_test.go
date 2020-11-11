@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
 	"testing"
@@ -57,7 +58,6 @@ func testUploadDownload(t *testing.T, url string, data []byte) {
 
 	// confirm download matches upload
 	respData, code, err := downloadFile(url)
-	fmt.Printf("download response \"%s\"\n", data)
 	if err != nil {
 		t.Error(err)
 	}
@@ -72,8 +72,6 @@ func testUploadDownload(t *testing.T, url string, data []byte) {
 func TestUploadDownload(t *testing.T) {
 	root := "dataserver_test"
 	os.RemoveAll(root)
-	// clean up after all tests
-	defer os.RemoveAll(root)
 
 	handler := http.NewServeMux()
 	handler.Handle("/data/", http.StripPrefix("/data/", DataServer(root)))
@@ -96,7 +94,10 @@ func TestUploadDownload(t *testing.T) {
 	}
 
 	fmt.Printf("\ntesting large file upload\n")
-	url := "http://127.0.0.1:10000/data/file"
-	var data [64 * 1024 * 1024]byte
-	testUploadDownload(t, url, data[:])
+	url := "http://127.0.0.1:10000/data/largefile"
+	data := make([]byte, 32*1024*1024)
+	rand.Read(data)
+	testUploadDownload(t, url, data)
+
+	os.RemoveAll(root)
 }

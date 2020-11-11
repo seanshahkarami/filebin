@@ -89,7 +89,7 @@ func (s *dataServer) uploadFile(w http.ResponseWriter, r *http.Request) {
 
 	defer s.unlockFile(r.URL.Path)
 
-	log.Printf("uploading \"%s\" (%d bytes) from %s", r.URL.Path, r.ContentLength, r.RemoteAddr)
+	log.Printf("upload \"%s\" (%d bytes) from %s", r.URL.Path, r.ContentLength, r.RemoteAddr)
 
 	if err := os.MkdirAll(s.tempDir, 0755); err != nil && !os.IsExist(err) {
 		log.Printf("failed to create temp directory")
@@ -107,13 +107,14 @@ func (s *dataServer) uploadFile(w http.ResponseWriter, r *http.Request) {
 	filePath := filepath.Join(s.fileDir, r.URL.Path)
 
 	if _, err := os.Stat(filePath); err == nil {
+		log.Printf("upload error \"%s\": file already exists", r.URL.Path)
 		http.Error(w, "file already exists", http.StatusBadRequest)
 		return
 	}
 
 	f, err := os.OpenFile(tempPath, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Printf("could not open temp file %s", tempPath)
+		log.Printf("upload error \"%s\": could not create temp file", r.URL.Path)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}

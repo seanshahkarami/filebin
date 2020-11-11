@@ -75,9 +75,9 @@ func (s *dataServer) uploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// uploads cannot contain slashes
-	if strings.Count(r.URL.Path, "/") > 1 {
-		http.Error(w, "filename must not contain slashes", http.StatusBadRequest)
+	// uploads filenames cannot contain dots or slashes
+	if strings.ContainsAny(r.URL.Path, "./") {
+		http.Error(w, "filename must not . or /", http.StatusBadRequest)
 		return
 	}
 

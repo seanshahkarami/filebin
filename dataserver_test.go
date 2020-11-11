@@ -13,6 +13,13 @@ import (
 
 const testRootDir = "dataserver_test"
 
+func cleanTestRootDir() {
+	err := os.RemoveAll(testRootDir)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func downloadFile(handler http.Handler, url string) ([]byte, int, error) {
 	req := httptest.NewRequest("GET", url, nil)
 	w := httptest.NewRecorder()
@@ -73,8 +80,8 @@ func testUploadDownload(t *testing.T, handler http.Handler, url string, data []b
 }
 
 func TestUploadDownload(t *testing.T) {
-	os.RemoveAll(testRootDir)
-	defer os.RemoveAll(testRootDir)
+	cleanTestRootDir()
+	defer cleanTestRootDir()
 
 	handler := http.StripPrefix("/data/", DataServer(testRootDir))
 

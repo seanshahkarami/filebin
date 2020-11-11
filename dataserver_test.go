@@ -2,59 +2,39 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
 )
 
 const testRootDir = "dataserver_test"
 
-func startServer() *http.Server {
-	os.RemoveAll(testRootDir)
-	handler := http.NewServeMux()
-	handler.Handle("/data/", http.StripPrefix("/data/", DataServer(testRootDir)))
-	server := &http.Server{
-		Addr:         "127.0.0.1:10000",
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		Handler:      handler,
-	}
-	go server.ListenAndServe()
-	return server
-}
+func downloadFile(handler http.Handler, url string) ([]byte, int, error) {
+	req := httptest.NewRequest("GET", url, nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
 
-func stopServer(server *http.Server) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	server.Shutdown(ctx)
-	os.RemoveAll(testRootDir)
-}
-
-func downloadFile(url string) ([]byte, int, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, 0, err
-	}
+	resp := w.Result()
 	b, err := ioutil.ReadAll(resp.Body)
 	return b, resp.StatusCode, err
 }
 
-func uploadFile(url string, body []byte) ([]byte, int, error) {
-	resp, err := http.Post(url, "", bytes.NewReader(body))
-	if err != nil {
-		return nil, 0, err
-	}
+func uploadFile(handler http.Handler, url string, body []byte) ([]byte, int, error) {
+	req := httptest.NewRequest("POST", url, bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	resp := w.Result()
 	b, err := ioutil.ReadAll(resp.Body)
 	return b, resp.StatusCode, err
 }
 
-func testUploadDownload(t *testing.T, url string, data []byte) {
-	_, code, err := downloadFile(url)
+func testUploadDownload(t *testing.T, handler http.Handler, url string, data []byte) {
+	_, code, err := downloadFile(handler, url)
 	if err != nil {
 		t.Error(err)
 	}
@@ -62,7 +42,7 @@ func testUploadDownload(t *testing.T, url string, data []byte) {
 		t.Errorf("file should not exist yet")
 	}
 
-	_, code, err = uploadFile(url, data)
+	_, code, err = uploadFile(handler, url, data)
 	if err != nil {
 		t.Error(err)
 	}
@@ -71,7 +51,7 @@ func testUploadDownload(t *testing.T, url string, data []byte) {
 	}
 
 	// confirm we can't reupload
-	_, code, err = uploadFile(url, data)
+	_, code, err = uploadFile(handler, url, data)
 	if err != nil {
 		t.Error(err)
 	}
@@ -80,7 +60,7 @@ func testUploadDownload(t *testing.T, url string, data []byte) {
 	}
 
 	// confirm download matches upload
-	respData, code, err := downloadFile(url)
+	respData, code, err := downloadFile(handler, url)
 	if err != nil {
 		t.Error(err)
 	}
@@ -93,17 +73,19 @@ func testUploadDownload(t *testing.T, url string, data []byte) {
 }
 
 func TestUploadDownload(t *testing.T) {
-	server := startServer()
-	defer stopServer(server)
+	os.RemoveAll(testRootDir)
+	defer os.RemoveAll(testRootDir)
+
+	handler := http.StripPrefix("/data/", DataServer(testRootDir))
 
 	for i := 0; i < 100; i++ {
-		url := fmt.Sprintf("http://127.0.0.1:10000/data/file%d", i)
+		url := fmt.Sprintf("http://example.com/data/file-%d", i)
 		data := []byte(fmt.Sprintf("here's some test data - test %d", i))
-		testUploadDownload(t, url, data)
+		testUploadDownload(t, handler, url, data)
 	}
 
-	url := "http://127.0.0.1:10000/data/largefile"
+	url := "http://example.com/data/largefile"
 	data := make([]byte, 256*1024*1024)
 	rand.Read(data)
-	testUploadDownload(t, url, data)
+	testUploadDownload(t, handler, url, data)
 }

@@ -68,7 +68,7 @@ func testUploadDownload(t *testing.T, handler http.Handler, url string, data []b
 
 func TestUploadDownload(t *testing.T) {
 	mustCleanDir(testRootDir)
-	defer mustCleanDir(testRootDir)
+	// defer mustCleanDir(testRootDir)
 
 	handler := http.StripPrefix("/data/", DataServer(testRootDir))
 

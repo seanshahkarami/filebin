@@ -89,7 +89,7 @@ func (s *dataServer) uploadFile(w http.ResponseWriter, r *http.Request) {
 
 	defer s.unlockFile(r.URL.Path)
 
-	log.Printf("uploading \"%s\" (%d bytes) from %s", r.URL, r.ContentLength, r.RemoteAddr)
+	log.Printf("uploading \"%s\" (%d bytes) from %s", r.URL.Path, r.ContentLength, r.RemoteAddr)
 
 	if err := os.MkdirAll(s.tempDir, 0755); err != nil && !os.IsExist(err) {
 		log.Printf("failed to create temp directory")

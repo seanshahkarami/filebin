@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -31,6 +32,8 @@ func uploadFile(url string, body []byte) ([]byte, int, error) {
 func TestUploadDownload(t *testing.T) {
 	root := "dataserver_test"
 	os.RemoveAll(root)
+	// clean up after all tests
+	defer os.RemoveAll(root)
 
 	handler := http.NewServeMux()
 	handler.Handle("/data/", http.StripPrefix("/data/", DataServer(root)))
@@ -45,25 +48,26 @@ func TestUploadDownload(t *testing.T) {
 	go server.ListenAndServe()
 	defer server.Shutdown(context.TODO())
 
-	if _, code, err := downloadFile("http://127.0.0.1:10000/data/file1"); err != nil || code != http.StatusNotFound {
-		if err != nil {
-			t.Error(err)
-		} else {
-			t.Errorf("expected no file")
-		}
+	_, code, err := downloadFile("http://127.0.0.1:10000/data/file1")
+	if err != nil {
+		t.Error(err)
+	}
+	if code != http.StatusNotFound {
+		t.Errorf("file should not exist yet")
 	}
 
 	testData := []byte("here's some test data")
 
-	if _, code, err := uploadFile("http://127.0.0.1:10000/data/file1", testData); err != nil || code != http.StatusOK {
-		if err != nil {
-			t.Error(err)
-		} else {
-			t.Errorf("file upload failed")
-		}
+	_, code, err = uploadFile("http://127.0.0.1:10000/data/file1", testData)
+	if err != nil {
+		t.Error(err)
+	}
+	if code != http.StatusOK {
+		t.Errorf("file upload failed")
 	}
 
 	data, code, err := downloadFile("http://127.0.0.1:10000/data/file1")
+	fmt.Printf("download response \"%s\"\n", data)
 	if err != nil {
 		t.Error(err)
 	}
@@ -73,6 +77,4 @@ func TestUploadDownload(t *testing.T) {
 	if bytes.Compare(data, testData) != 0 {
 		t.Errorf("downlaod differs from upload")
 	}
-
-	os.RemoveAll(root)
 }

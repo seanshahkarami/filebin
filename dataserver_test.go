@@ -95,7 +95,7 @@ func TestUploadDownload(t *testing.T) {
 
 	fmt.Printf("\ntesting large file upload\n")
 	url := "http://127.0.0.1:10000/data/largefile"
-	data := make([]byte, 32*1024*1024)
+	data := make([]byte, 256*1024*1024)
 	rand.Read(data)
 	testUploadDownload(t, url, data)
 

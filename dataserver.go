@@ -120,7 +120,7 @@ func (s *dataServer) uploadFile(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 
 	if _, err := io.CopyN(f, r.Body, r.ContentLength); err != nil {
-		log.Printf("upload error %s: %s", tempPath, err)
+		log.Printf("upload error \"%s\": %s", r.URL.Path, err)
 		// clean up partial transfer
 		os.Remove(tempPath)
 		return
@@ -128,9 +128,9 @@ func (s *dataServer) uploadFile(w http.ResponseWriter, r *http.Request) {
 
 	// atomic move temp file to final destination
 	if err := os.Rename(tempPath, filePath); err != nil {
-		log.Printf("upload error %s: %s", tempPath, err)
+		log.Printf("upload error \"%s\": %s", r.URL.Path, err)
 		return
 	}
 
-	log.Printf("upload ok \"%s\"", filePath)
+	log.Printf("upload ok \"%s\"", r.URL.Path)
 }

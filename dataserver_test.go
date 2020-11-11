@@ -29,6 +29,46 @@ func uploadFile(url string, body []byte) ([]byte, int, error) {
 	return b, resp.StatusCode, err
 }
 
+func testUploadDownload(t *testing.T, url string, data []byte) {
+	_, code, err := downloadFile(url)
+	if err != nil {
+		t.Error(err)
+	}
+	if code != http.StatusNotFound {
+		t.Errorf("file should not exist yet")
+	}
+
+	_, code, err = uploadFile(url, data)
+	if err != nil {
+		t.Error(err)
+	}
+	if code != http.StatusOK {
+		t.Errorf("file upload failed")
+	}
+
+	// confirm we can't reupload
+	_, code, err = uploadFile(url, data)
+	if err != nil {
+		t.Error(err)
+	}
+	if code != http.StatusBadRequest {
+		t.Errorf("file upload should have failed")
+	}
+
+	// confirm download matches upload
+	respData, code, err := downloadFile(url)
+	fmt.Printf("download response \"%s\"\n", data)
+	if err != nil {
+		t.Error(err)
+	}
+	if code != http.StatusOK {
+		t.Errorf("expecting http status OK")
+	}
+	if bytes.Compare(data, respData) != 0 {
+		t.Errorf("download differs from upload")
+	}
+}
+
 func TestUploadDownload(t *testing.T) {
 	root := "dataserver_test"
 	os.RemoveAll(root)
@@ -48,33 +88,15 @@ func TestUploadDownload(t *testing.T) {
 	go server.ListenAndServe()
 	defer server.Shutdown(context.TODO())
 
-	_, code, err := downloadFile("http://127.0.0.1:10000/data/file1")
-	if err != nil {
-		t.Error(err)
-	}
-	if code != http.StatusNotFound {
-		t.Errorf("file should not exist yet")
-	}
-
-	testData := []byte("here's some test data")
-
-	_, code, err = uploadFile("http://127.0.0.1:10000/data/file1", testData)
-	if err != nil {
-		t.Error(err)
-	}
-	if code != http.StatusOK {
-		t.Errorf("file upload failed")
+	fmt.Printf("\ntesting many small file uploads\n")
+	for i := 0; i < 100; i++ {
+		url := fmt.Sprintf("http://127.0.0.1:10000/data/file%d", i)
+		data := []byte(fmt.Sprintf("here's some test data - test %d", i))
+		testUploadDownload(t, url, data)
 	}
 
-	data, code, err := downloadFile("http://127.0.0.1:10000/data/file1")
-	fmt.Printf("download response \"%s\"\n", data)
-	if err != nil {
-		t.Error(err)
-	}
-	if code != http.StatusOK {
-		t.Errorf("expecting http status OK")
-	}
-	if bytes.Compare(data, testData) != 0 {
-		t.Errorf("downlaod differs from upload")
-	}
+	fmt.Printf("\ntesting large file upload\n")
+	url := "http://127.0.0.1:10000/data/file"
+	var data [64 * 1024 * 1024]byte
+	testUploadDownload(t, url, data[:])
 }

@@ -12,6 +12,29 @@ import (
 	"time"
 )
 
+const testRootDir = "dataserver_test"
+
+func startServer() *http.Server {
+	os.RemoveAll(testRootDir)
+	handler := http.NewServeMux()
+	handler.Handle("/data/", http.StripPrefix("/data/", DataServer(testRootDir)))
+	server := &http.Server{
+		Addr:         "127.0.0.1:10000",
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		Handler:      handler,
+	}
+	go server.ListenAndServe()
+	return server
+}
+
+func stopServer(server *http.Server) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	server.Shutdown(ctx)
+	os.RemoveAll(testRootDir)
+}
+
 func downloadFile(url string) ([]byte, int, error) {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -70,34 +93,17 @@ func testUploadDownload(t *testing.T, url string, data []byte) {
 }
 
 func TestUploadDownload(t *testing.T) {
-	root := "dataserver_test"
-	os.RemoveAll(root)
+	server := startServer()
+	defer stopServer(server)
 
-	handler := http.NewServeMux()
-	handler.Handle("/data/", http.StripPrefix("/data/", DataServer(root)))
-
-	server := http.Server{
-		Addr:         "127.0.0.1:10000",
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		Handler:      handler,
-	}
-
-	go server.ListenAndServe()
-	defer server.Shutdown(context.TODO())
-
-	fmt.Printf("\ntesting many small file uploads\n")
 	for i := 0; i < 100; i++ {
 		url := fmt.Sprintf("http://127.0.0.1:10000/data/file%d", i)
 		data := []byte(fmt.Sprintf("here's some test data - test %d", i))
 		testUploadDownload(t, url, data)
 	}
 
-	fmt.Printf("\ntesting large file upload\n")
 	url := "http://127.0.0.1:10000/data/largefile"
 	data := make([]byte, 256*1024*1024)
 	rand.Read(data)
 	testUploadDownload(t, url, data)
-
-	os.RemoveAll(root)
 }

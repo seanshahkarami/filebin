@@ -63,8 +63,6 @@ func (s *dataServer) unlockFile(name string) {
 }
 
 func (s *dataServer) uploadFile(w http.ResponseWriter, r *http.Request) {
-	log.Printf("upload %s %s", r.RemoteAddr, r.URL)
-
 	// uploads must include size
 	if r.ContentLength < 0 {
 		http.Error(w, "content-length is required", http.StatusBadRequest)
@@ -90,6 +88,8 @@ func (s *dataServer) uploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	defer s.unlockFile(r.URL.Path)
+
+	log.Printf("uploading \"%s\" (%d bytes) from %s", r.URL, r.ContentLength, r.RemoteAddr)
 
 	if err := os.MkdirAll(s.tempDir, 0755); err != nil && !os.IsExist(err) {
 		log.Printf("failed to create temp directory")
@@ -120,12 +120,17 @@ func (s *dataServer) uploadFile(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 
 	if _, err := io.CopyN(f, r.Body, r.ContentLength); err != nil {
-		log.Printf("upload failed %s", tempPath)
+		log.Printf("upload error %s: %s", tempPath, err)
 		// clean up partial transfer
 		os.Remove(tempPath)
 		return
 	}
 
-	os.Rename(tempPath, filePath)
-	log.Printf("upload done %s", filePath)
+	// atomic move temp file to final destination
+	if err := os.Rename(tempPath, filePath); err != nil {
+		log.Printf("upload error %s: %s", tempPath, err)
+		return
+	}
+
+	log.Printf("upload ok \"%s\"", filePath)
 }
